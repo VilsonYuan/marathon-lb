@@ -42,6 +42,8 @@ from tempfile import mkstemp
 import dateutil.parser
 import requests
 
+from check_marathon_port import check_conflict_port
+
 from common import (get_marathon_auth_params, set_logging_args,
                     set_marathon_auth_args, setup_logging)
 from config import ConfigTemplater, label_keys
@@ -645,6 +647,11 @@ def reloadConfig():
         try:
             start_time = time.time()
             old_pids = get_haproxy_pids()
+
+            # 清理缓存
+            pro = subprocess.Popen('socat /var/run/haproxy/socket - <<< "show servers state" > /var/state/haproxy/global', stdout=subprocess.PIPE, shell=True)
+            pro.communicate()
+
             subprocess.check_call(reloadCommand, close_fds=True)
             # Wait until the reload actually occurs and there's a new PID
             while len(get_haproxy_pids() - old_pids) < 1:
@@ -1158,6 +1165,7 @@ def compareWriteAndReloadConfig(config, config_file, domain_map_array,
             if writeConfigAndValidate(
                     config, config_file, domain_map_string, domain_map_file,
                     app_map_string, app_map_file, haproxy_map):
+                check_conflict_port(logger, config)
                 reloadConfig()
             else:
                 logger.warning("skipping reload: config/map not valid")
@@ -1173,6 +1181,7 @@ def compareWriteAndReloadConfig(config, config_file, domain_map_array,
             if writeConfigAndValidate(
                     config, config_file, domain_map_string, domain_map_file,
                     app_map_string, app_map_file, haproxy_map):
+                check_conflict_port(logger, config)
                 reloadConfig()
             else:
                 logger.warning("skipping reload: config not valid")
